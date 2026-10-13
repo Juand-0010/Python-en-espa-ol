@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+from collections import Counter
 from pathlib import Path
 
 
@@ -67,6 +68,75 @@ def _indent(level: int) -> str:
     return "  " * level
 
 
+def _target_names(target: ast.AST) -> list[str]:
+    """Obtiene los nombres asignados, incluso en desempaquetado."""
+    if isinstance(target, ast.Name):
+        return [target.id]
+    if isinstance(target, (ast.Tuple, ast.List)):
+        return [name for item in target.elts for name in _target_names(item)]
+    return []
+
+
+def _variable_report(tree: ast.Module) -> list[str]:
+    """Resume dónde aparecen los nombres y cómo se asignan en el módulo."""
+    stores: Counter[str] = Counter()
+    loads: Counter[str] = Counter()
+    first_values: dict[str, ast.AST] = {}
+    annotated: set[str] = set()
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name):
+            if isinstance(node.ctx, ast.Store):
+                stores[node.id] += 1
+            elif isinstance(node.ctx, ast.Load):
+                loads[node.id] += 1
+        elif isinstance(node, ast.AnnAssign):
+            annotated.update(_target_names(node.target))
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                for name in _target_names(target):
+                    first_values.setdefault(name, node.value)
+        elif isinstance(node, (ast.AnnAssign, ast.NamedExpr)) and node.value is not None:
+            for name in _target_names(node.target):
+                first_values.setdefault(name, node.value)
+        elif isinstance(node, (ast.For, ast.AsyncFor)):
+            for name in _target_names(node.target):
+                first_values.setdefault(name, node.iter)
+
+    lines = [
+        "Variables en Python:",
+        "- No hace falta declarar una variable antes de usarla: se crea al asignarle un valor.",
+        "- Conviene elegir nombres descriptivos y asignar un valor antes de leer la variable.",
+        "- Añadir un tipo (por ejemplo, edad: int = 18) es opcional; ayuda a documentar la intención y a algunas herramientas.",
+    ]
+    names = sorted(stores)
+    if not names:
+        lines.append("Este código no asigna variables con nombres simples.")
+        return lines
+
+    lines.append("Variables encontradas:")
+    for name in names:
+        use_count = loads[name]
+        assignments = stores[name]
+        value = first_values.get(name)
+        detail = f"«{name}» se asigna {assignments} vez/veces"
+        if value is not None:
+            detail += f", empezando con {_expression(value)}"
+        detail += f"; se lee {use_count} vez/veces"
+        if use_count == 0:
+            detail += ". No aparece leída en este código; revisa si la asignación hace falta"
+        elif assignments > 1:
+            detail += ". Se reasigna; comprueba que cada cambio sea intencional"
+        else:
+            detail += ". Su uso está respaldado por una lectura posterior"
+        if name in annotated:
+            detail += ". Tiene una anotación de tipo, que Python no exige para crearla"
+        lines.append(f"- {detail}.")
+    return lines
+
+
 def _statements(nodes: list[ast.stmt], level: int = 0) -> list[str]:
     lines: list[str] = []
     pad = _indent(level)
@@ -124,14 +194,18 @@ def _statements(nodes: list[ast.stmt], level: int = 0) -> list[str]:
     return lines
 
 
-def explain(source: str) -> str:
-    """Devuelve una explicación en español del código Python recibido."""
+def explain(source: str, *, topic: str | None = None) -> str:
+    """Devuelve una explicación en español; ``topic='variables'`` resume variables."""
+    if topic not in (None, "variables"):
+        raise ValueError("Tema no disponible. Por ahora puedes usar 'variables'.")
     try:
         tree = ast.parse(source)
     except SyntaxError as exc:
         where = f" en la línea {exc.lineno}" if exc.lineno else ""
         raise TranslationError(f"No se pudo analizar el código{where}: {exc.msg}") from exc
-    return "\n".join(_statements(tree.body)) or "El programa está vacío."
+    if topic == "variables":
+        return "\n".join(_variable_report(tree))
+    return "\n".join([*_variable_report(tree), "", "Explicación del código:", *_statements(tree.body)]) or "El programa está vacío."
 
 
 def explain_file(path: str | Path) -> str:
