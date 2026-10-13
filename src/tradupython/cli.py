@@ -9,7 +9,7 @@ from .translator import TranslationError, explain_file
 def main() -> int:
     parser = argparse.ArgumentParser(description="Explica código Python en español.")
     parser.add_argument("archivo", help="archivo .py que quieres entender")
-    parser.add_argument("--tema", choices=("variables",), help="explica solo el tema indicado")
+    parser.add_argument("--tema", choices=("variables", "expresiones"), help="explica solo el tema indicado")
     args = parser.parse_args()
     try:
         if args.tema:

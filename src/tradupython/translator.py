@@ -137,6 +137,63 @@ def _variable_report(tree: ast.Module) -> list[str]:
     return lines
 
 
+def _describe_expression(node: ast.AST) -> str:
+    """Explica qué operación realiza una expresión y qué resultado produce."""
+    if isinstance(node, ast.BinOp):
+        actions = {
+            ast.Add: "suma o concatena", ast.Sub: "resta", ast.Mult: "multiplica o repite",
+            ast.Div: "divide y produce un número decimal", ast.FloorDiv: "divide y redondea hacia abajo",
+            ast.Mod: "obtiene el residuo de la división", ast.Pow: "eleva a una potencia",
+            ast.BitAnd: "combina los bits con AND", ast.BitOr: "combina los bits con OR",
+            ast.BitXor: "combina los bits con XOR", ast.LShift: "desplaza los bits a la izquierda",
+            ast.RShift: "desplaza los bits a la derecha",
+        }
+        action = actions.get(type(node.op), "opera")
+        return f"{action} {_expression(node.left)} y {_expression(node.right)}; el resultado depende de los valores y sus tipos"
+    if isinstance(node, ast.Compare):
+        return f"compara {_expression(node.left)} con {_expression(node.comparators[0])}; produce True o False"
+    if isinstance(node, ast.BoolOp):
+        operation = "AND (y)" if isinstance(node.op, ast.And) else "OR (o)"
+        operands = " y ".join(_expression(value) for value in node.values)
+        return f"combina {operands} con {operation}; Python evalúa de izquierda a derecha y puede detenerse al conocer el resultado"
+    if isinstance(node, ast.UnaryOp):
+        actions = {ast.Not: "invierte el valor lógico de", ast.USub: "cambia el signo de", ast.UAdd: "conserva el signo de", ast.Invert: "invierte los bits de"}
+        return f"{actions.get(type(node.op), 'opera sobre')} {_expression(node.operand)}"
+    if isinstance(node, ast.Call):
+        if isinstance(node.func, ast.Name) and node.func.id == "len" and node.args:
+            return f"llama a len para contar los elementos de {_expression(node.args[0])}; devuelve un entero"
+        if isinstance(node.func, ast.Name) and node.func.id == "type" and node.args:
+            return f"llama a type para consultar el tipo de {_expression(node.args[0])}"
+        return f"llama a «{ast.unparse(node.func)}»; el resultado depende de esa función"
+    if isinstance(node, ast.Subscript):
+        return f"accede al elemento indicado por {_expression(node.slice)} dentro de {_expression(node.value)}"
+    if isinstance(node, ast.Attribute):
+        return f"accede al atributo «{node.attr}» de {_expression(node.value)}"
+    if isinstance(node, ast.IfExp):
+        return f"elige {_expression(node.body)} si {_expression(node.test)} es verdadero; si no, elige {_expression(node.orelse)}"
+    return f"obtiene {_expression(node)}"
+
+
+def _expression_report(tree: ast.Module) -> list[str]:
+    lines = [
+        "Operadores y expresiones en Python:",
+        "- Una expresión combina valores, variables y operaciones para producir un resultado.",
+        "- El tipo de los operandos importa: + suma números, pero concatena cadenas; operaciones incompatibles pueden producir un error.",
+        "- Las comparaciones producen True o False. and y or pueden dejar de evaluar antes de revisar todos sus operandos.",
+    ]
+    expressions = [node for node in ast.walk(tree) if isinstance(node, (ast.BinOp, ast.Compare, ast.BoolOp, ast.UnaryOp, ast.Call, ast.Subscript, ast.IfExp))]
+    seen: set[str] = set()
+    for node in sorted(expressions, key=lambda item: (item.lineno, item.col_offset)):
+        code = ast.unparse(node)
+        if code in seen:
+            continue
+        seen.add(code)
+        lines.append(f"- «{code}»: {_describe_expression(node)}.")
+    if not seen:
+        lines.append("No encontré operadores ni expresiones de este tipo en el código.")
+    return lines
+
+
 def _statements(nodes: list[ast.stmt], level: int = 0) -> list[str]:
     lines: list[str] = []
     pad = _indent(level)
@@ -195,9 +252,9 @@ def _statements(nodes: list[ast.stmt], level: int = 0) -> list[str]:
 
 
 def explain(source: str, *, topic: str | None = None) -> str:
-    """Devuelve una explicación en español; ``topic='variables'`` resume variables."""
-    if topic not in (None, "variables"):
-        raise ValueError("Tema no disponible. Por ahora puedes usar 'variables'.")
+    """Devuelve una explicación en español, opcionalmente centrada en un tema."""
+    if topic not in (None, "variables", "expresiones"):
+        raise ValueError("Tema no disponible. Puedes usar 'variables' o 'expresiones'.")
     try:
         tree = ast.parse(source)
     except SyntaxError as exc:
@@ -205,7 +262,9 @@ def explain(source: str, *, topic: str | None = None) -> str:
         raise TranslationError(f"No se pudo analizar el código{where}: {exc.msg}") from exc
     if topic == "variables":
         return "\n".join(_variable_report(tree))
-    return "\n".join([*_variable_report(tree), "", "Explicación del código:", *_statements(tree.body)]) or "El programa está vacío."
+    if topic == "expresiones":
+        return "\n".join(_expression_report(tree))
+    return "\n".join([*_variable_report(tree), "", *_expression_report(tree), "", "Explicación del código:", *_statements(tree.body)]) or "El programa está vacío."
 
 
 def explain_file(path: str | Path) -> str:

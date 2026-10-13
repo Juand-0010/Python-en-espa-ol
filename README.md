@@ -40,16 +40,28 @@ O desde la terminal:
 tradupython mi_programa.py --tema variables
 ```
 
+Para estudiar operadores y expresiones:
+
+```python
+print(explain(codigo, topic="expresiones"))
+```
+
+```bash
+tradupython mi_programa.py --tema expresiones
+```
+
 El informe de variables explica que no es necesario declararlas antes de asignarles un valor, cuenta asignaciones y lecturas visibles en el archivo, y señala nombres que no se leen o se reasignan. Recomienda nombres descriptivos y explica que las anotaciones de tipo son opcionales. Estas cuentas son aproximadas: no determinan si el código se ejecutará ni si una variable es necesaria en todos los caminos.
 
 La explicación general conserva los nombres de variables, funciones, módulos y cadenas para no cambiar su significado. Incluye asignaciones, condiciones, ciclos, funciones, clases, llamadas e importaciones; las construcciones aún no reconocidas se muestran como instrucciones Python.
+
+El tema de expresiones describe operaciones aritméticas, comparaciones, lógica booleana, acceso a elementos, atributos y llamadas comunes. No ejecuta las expresiones para calcular resultados: explica el tipo de operación y aclara cuándo el resultado depende de los valores o tipos reales.
 
 ## Plan de trabajo
 
 El proyecto avanzará por temas pequeños. Cada etapa añadirá explicaciones en español, ejemplos de entrada y salida, y documentación de sus límites. La meta es que una persona pueda entender qué hace un programa Python sin que la herramienta altere ni ejecute ese programa.
 
 1. **Variables y valores — en curso.** Explicar asignación, lectura, reasignación, nombres sin uso visible, valores comunes y anotaciones de tipo. Mejorar el análisis para distinguir ámbitos de funciones y clases y evitar conclusiones que dependan de rutas de ejecución.
-2. **Operadores y expresiones.** Explicar cálculos, comparaciones, lógica booleana, pertenencia, índices y llamadas, con ejemplos de cómo se combinan para producir valores.
+2. **Operadores y expresiones — disponible.** Explicar cálculos, comparaciones, lógica booleana, pertenencia, índices y llamadas, con ejemplos de cómo se combinan para producir valores.
 3. **Decisiones y ciclos.** Explicar `if`/`elif`/`else`, `for`, `while`, `break` y `continue`, detallando condiciones y bloques de forma consistente.
 4. **Funciones.** Explicar parámetros, argumentos, valores predeterminados, retorno, ámbito local y global, y docstrings.
 5. **Colecciones.** Explicar listas, tuplas, conjuntos y diccionarios, sus operaciones habituales y acceso a elementos.
