@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tradupython"
+version = "0.1.0"
+description = "Explica código Python en español usando su árbol sintáctico."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Juand-0010" }]
+
+[project.scripts]
+tradupython = "tradupython.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
