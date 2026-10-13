@@ -62,7 +62,7 @@ El proyecto avanzará por temas pequeños. Cada etapa añadirá explicaciones en
 
 1. **Variables y valores — en curso.** Explicar asignación, lectura, reasignación, nombres sin uso visible, valores comunes y anotaciones de tipo. Mejorar el análisis para distinguir ámbitos de funciones y clases y evitar conclusiones que dependan de rutas de ejecución.
 2. **Operadores y expresiones — disponible.** Explicar cálculos, comparaciones, lógica booleana, pertenencia, índices y llamadas, con ejemplos de cómo se combinan para producir valores.
-3. **Decisiones y ciclos.** Explicar `if`/`elif`/`else`, `for`, `while`, `break` y `continue`, detallando condiciones y bloques de forma consistente.
+3. **Decisiones y ciclos — siguiente paso.** Explicar `if`/`elif`/`else`, `for`, `while`, `break` y `continue`, detallando condiciones y bloques de forma consistente.
 4. **Funciones.** Explicar parámetros, argumentos, valores predeterminados, retorno, ámbito local y global, y docstrings.
 5. **Colecciones.** Explicar listas, tuplas, conjuntos y diccionarios, sus operaciones habituales y acceso a elementos.
 6. **Clases y objetos.** Explicar clases, atributos, métodos, `self`, inicialización y herencia básica.
