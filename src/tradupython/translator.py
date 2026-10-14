@@ -45,7 +45,9 @@ def _expression(node: ast.AST) -> str:
         return " ".join(bits)
     if isinstance(node, ast.Call):
         args = ", ".join(_expression(arg) for arg in node.args)
-        return f"la llamada a «{ast.unparse(node.func)}»" + (f" con {args}" if args else "")
+        keywords = ", ".join(f"{item.arg}={_expression(item.value)}" for item in node.keywords)
+        all_args = ", ".join(part for part in (args, keywords) if part)
+        return f"la llamada a «{ast.unparse(node.func)}»" + (f" con {all_args}" if all_args else "")
     if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
         label = {ast.List: "lista", ast.Tuple: "tupla", ast.Set: "conjunto"}[type(node)]
         return f"una {label} con {len(node.elts)} elemento(s)"
@@ -61,6 +63,8 @@ def _expression(node: ast.AST) -> str:
     if isinstance(node, ast.BoolOp):
         joiner = " y " if isinstance(node.op, ast.And) else " o "
         return joiner.join(_expression(value) for value in node.values)
+    if isinstance(node, ast.IfExp):
+        return f"{_expression(node.body)} si {_expression(node.test)}; de lo contrario {_expression(node.orelse)}"
     return f"la expresión «{ast.unparse(node)}»"
 
 
@@ -194,10 +198,116 @@ def _expression_report(tree: ast.Module) -> list[str]:
     return lines
 
 
+def _arguments(args: ast.arguments) -> str:
+    entries: list[str] = []
+    positional = [*args.posonlyargs, *args.args]
+    defaults = [None] * (len(positional) - len(args.defaults)) + list(args.defaults)
+    for arg, default in zip(positional, defaults):
+        item = arg.arg
+        if arg.annotation:
+            item += f" (tipo sugerido: {ast.unparse(arg.annotation)})"
+        if default:
+            item += f"; valor predeterminado: {_expression(default)}"
+        entries.append(item)
+    if args.vararg:
+        entries.append(f"*{args.vararg.arg} recibe argumentos adicionales")
+    entries.extend(f"{item.arg}={ast.unparse(item.value)}" for item in args.kwonlyargs if item.arg)
+    if args.kwarg:
+        entries.append(f"**{args.kwarg.arg} recibe argumentos con nombre adicionales")
+    return ", ".join(entries) or "ninguno"
+
+
+def _function_report(tree: ast.Module) -> list[str]:
+    functions = [node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]
+    lines = ["Funciones en Python:", "- Se definen con def y su cuerpo se ejecuta cuando se las llama.", "- Los parámetros reciben argumentos; return devuelve un resultado. Sin return explícito, la función devuelve None."]
+    if not functions:
+        lines.append("No encontré definiciones de funciones.")
+        return lines
+    for node in sorted(functions, key=lambda item: (item.lineno, item.col_offset)):
+        kind = "función asíncrona" if isinstance(node, ast.AsyncFunctionDef) else "función"
+        returns = [item for item in ast.walk(node) if isinstance(item, ast.Return)]
+        result = "contiene una instrucción return" if returns else "no contiene return explícito y devuelve None al terminar"
+        doc = ast.get_docstring(node)
+        detail = f"- «{node.name}» es una {kind} con parámetros: {_arguments(node.args)}; {result}."
+        if node.returns:
+            detail += f" Anotación de retorno: {ast.unparse(node.returns)}; es una indicación, no una conversión automática."
+        if doc:
+            detail += f" Docstring: {doc.strip()}"
+        lines.append(detail)
+    return lines
+
+
+def _collection_report(tree: ast.Module) -> list[str]:
+    kinds: dict[type[ast.AST], str] = {ast.List: "lista", ast.Tuple: "tupla", ast.Set: "conjunto", ast.Dict: "diccionario"}
+    found: dict[type[ast.AST], list[ast.AST]] = {kind: [] for kind in kinds}
+    for node in ast.walk(tree):
+        for kind in kinds:
+            if isinstance(node, kind):
+                found[kind].append(node)
+    lines = [
+        "Colecciones en Python:",
+        "- Las listas guardan elementos en orden y se pueden modificar; las tuplas guardan elementos en orden y no se modifican después de crearse.",
+        "- Los conjuntos guardan elementos únicos; los diccionarios relacionan claves con valores.",
+        "- Los corchetes acceden a posiciones o claves; algunos métodos, como append, modifican una lista.",
+    ]
+    any_found = False
+    for kind, nodes in found.items():
+        if nodes:
+            any_found = True
+            lines.append(f"- Hay {len(nodes)} expresión(es) de tipo {kinds[kind]}.")
+    accesses = [node for node in ast.walk(tree) if isinstance(node, ast.Subscript)]
+    for node in sorted(accesses, key=lambda item: (item.lineno, item.col_offset)):
+        lines.append(f"- «{ast.unparse(node)}»: {_describe_expression(node)}.")
+    if not any_found and not accesses:
+        lines.append("No encontré colecciones ni accesos por índice o clave.")
+    return lines
+
+
+def _class_report(tree: ast.Module) -> list[str]:
+    classes = [node for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]
+    lines = [
+        "Clases y objetos en Python:",
+        "- Una clase define una estructura; sus instancias son objetos. __init__ configura una instancia al crearla y self se refiere a esa instancia en los métodos.",
+        "- La herencia permite que una clase derive de otra. El análisis describe las bases escritas, pero no ejecuta la jerarquía.",
+    ]
+    if not classes:
+        lines.append("No encontré definiciones de clases.")
+        return lines
+    for node in sorted(classes, key=lambda item: (item.lineno, item.col_offset)):
+        bases = ", ".join(ast.unparse(base) for base in node.bases) or "ninguna"
+        methods = [item.name for item in node.body if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))]
+        fields = [ast.unparse(item.targets[0]) for item in node.body if isinstance(item, ast.Assign)]
+        detail = f"- «{node.name}»: bases {bases}."
+        if methods:
+            detail += f" Métodos: {', '.join(methods)}."
+        if fields:
+            detail += f" Asignaciones de clase: {', '.join(fields)}."
+        lines.append(detail)
+    return lines
+
+
+def _exception_import_report(tree: ast.Module) -> list[str]:
+    handlers = [node for node in ast.walk(tree) if isinstance(node, ast.Try)]
+    raises = [node for node in ast.walk(tree) if isinstance(node, ast.Raise)]
+    imports = [node for node in ast.walk(tree) if isinstance(node, (ast.Import, ast.ImportFrom))]
+    lines = ["Errores e importaciones:", "- try contiene código que puede fallar; except maneja los errores indicados, else se ejecuta si no hubo error y finally se ejecuta al salir del bloque.", "- raise lanza una excepción. Importar un módulo permite usar nombres que ese módulo ofrece; importar también puede ejecutar código de inicialización del módulo."]
+    if not handlers and not raises and not imports:
+        lines.append("No encontré bloques de manejo de errores, excepciones ni importaciones.")
+    for node in handlers:
+        names = ", ".join(ast.unparse(handler.type) if handler.type else "cualquier excepción" for handler in node.handlers) or "ningún tipo declarado"
+        lines.append(f"- try en la línea {node.lineno} maneja: {names}.")
+    for node in raises:
+        lines.append(f"- raise en la línea {node.lineno}: {ast.unparse(node)}.")
+    for node in imports:
+        lines.append(f"- Importación en la línea {node.lineno}: {ast.unparse(node)}.")
+    return lines
+
+
 def _statements(nodes: list[ast.stmt], level: int = 0) -> list[str]:
     lines: list[str] = []
     pad = _indent(level)
     for node in nodes:
+        lines.append(f"{pad}Línea {node.lineno} del código:")
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             params = ", ".join(arg.arg for arg in node.args.args) or "ninguno"
             kind = "función asíncrona" if isinstance(node, ast.AsyncFunctionDef) else "función"
@@ -218,9 +328,12 @@ def _statements(nodes: list[ast.stmt], level: int = 0) -> list[str]:
             lines.append(f"{pad}Si {_expression(node.test)}:")
             lines.extend(_statements(node.body, level + 1) or [f"{_indent(level + 1)}No hace nada."])
             if node.orelse:
-                label = "Si no:" if len(node.orelse) != 1 or not isinstance(node.orelse[0], ast.If) else "Si no, si:"
-                lines.append(f"{pad}{label}")
-                lines.extend(_statements(node.orelse, level + 1))
+                if len(node.orelse) == 1 and isinstance(node.orelse[0], ast.If):
+                    lines.append(f"{pad}Si no, comprueba otra condición:")
+                    lines.extend(_statements(node.orelse, level))
+                else:
+                    lines.append(f"{pad}Si no:")
+                    lines.extend(_statements(node.orelse, level + 1))
         elif isinstance(node, (ast.For, ast.AsyncFor)):
             lines.append(f"{pad}Para cada elemento de {_expression(node.iter)}, lo guarda en «{ast.unparse(node.target)}» y:")
             lines.extend(_statements(node.body, level + 1) or [f"{_indent(level + 1)}No hace nada."])
@@ -230,6 +343,22 @@ def _statements(nodes: list[ast.stmt], level: int = 0) -> list[str]:
         elif isinstance(node, ast.While):
             lines.append(f"{pad}Mientras {_expression(node.test)}:")
             lines.extend(_statements(node.body, level + 1) or [f"{_indent(level + 1)}No hace nada."])
+            if node.orelse:
+                lines.append(f"{pad}Si el ciclo termina sin break:")
+                lines.extend(_statements(node.orelse, level + 1))
+        elif isinstance(node, ast.Try):
+            lines.append(f"{pad}Intenta ejecutar este bloque:")
+            lines.extend(_statements(node.body, level + 1))
+            for handler in node.handlers:
+                exception = ast.unparse(handler.type) if handler.type else "cualquier excepción"
+                lines.append(f"{pad}Si ocurre {exception}:")
+                lines.extend(_statements(handler.body, level + 1))
+            if node.orelse:
+                lines.append(f"{pad}Si no ocurre ninguna excepción:")
+                lines.extend(_statements(node.orelse, level + 1))
+            if node.finalbody:
+                lines.append(f"{pad}Al salir del bloque, ejecuta siempre:")
+                lines.extend(_statements(node.finalbody, level + 1))
         elif isinstance(node, ast.Return):
             lines.append(f"{pad}Devuelve {_expression(node.value)}." if node.value else f"{pad}Termina la función sin devolver un valor.")
         elif isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
@@ -243,7 +372,10 @@ def _statements(nodes: list[ast.stmt], level: int = 0) -> list[str]:
         elif isinstance(node, ast.Continue):
             lines.append(f"{pad}Salta a la siguiente vuelta del ciclo.")
         elif isinstance(node, ast.Raise):
-            lines.append(f"{pad}Lanza el error {_expression(node.exc)}.")
+            if node.exc is None:
+                lines.append(f"{pad}Vuelve a lanzar la excepción que se está manejando.")
+            else:
+                lines.append(f"{pad}Lanza la excepción {_expression(node.exc)}.")
         elif isinstance(node, (ast.Import, ast.ImportFrom)):
             lines.append(f"{pad}Importa «{ast.unparse(node)}».")
         else:
@@ -253,8 +385,9 @@ def _statements(nodes: list[ast.stmt], level: int = 0) -> list[str]:
 
 def explain(source: str, *, topic: str | None = None) -> str:
     """Devuelve una explicación en español, opcionalmente centrada en un tema."""
-    if topic not in (None, "variables", "expresiones"):
-        raise ValueError("Tema no disponible. Puedes usar 'variables' o 'expresiones'.")
+    topics = (None, "variables", "expresiones", "decisiones", "funciones", "colecciones", "clases", "errores")
+    if topic not in topics:
+        raise ValueError(f"Tema no disponible. Elige uno de: {', '.join(item for item in topics if item)}.")
     try:
         tree = ast.parse(source)
     except SyntaxError as exc:
@@ -264,7 +397,16 @@ def explain(source: str, *, topic: str | None = None) -> str:
         return "\n".join(_variable_report(tree))
     if topic == "expresiones":
         return "\n".join(_expression_report(tree))
-    return "\n".join([*_variable_report(tree), "", *_expression_report(tree), "", "Explicación del código:", *_statements(tree.body)]) or "El programa está vacío."
+    reports = {
+        "decisiones": lambda: ["Decisiones y ciclos:", "- if elige un bloque según una condición; elif comprueba otra condición si las anteriores fueron falsas; else cubre los demás casos.", "- for recorre elementos; while repite mientras su condición sea verdadera. break sale del ciclo y continue salta a la siguiente vuelta.", *_statements(tree.body)],
+        "funciones": lambda: _function_report(tree),
+        "colecciones": lambda: _collection_report(tree),
+        "clases": lambda: _class_report(tree),
+        "errores": lambda: _exception_import_report(tree),
+    }
+    if topic:
+        return "\n".join(reports[topic]())
+    return "\n".join([*_variable_report(tree), "", *_expression_report(tree), "", *_function_report(tree), "", *_collection_report(tree), "", *_class_report(tree), "", *_exception_import_report(tree), "", "Explicación del código:", *_statements(tree.body)]) or "El programa está vacío."
 
 
 def explain_file(path: str | Path) -> str:
