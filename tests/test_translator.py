@@ -1,6 +1,6 @@
 import unittest
 
-from tradupython import TranslationError, explain
+from tradupython import TranslationError, explain, translate
 
 
 class ExplainTests(unittest.TestCase):
@@ -45,6 +45,33 @@ except ValueError:
     def test_unknown_topic_is_rejected(self):
         with self.assertRaises(ValueError):
             explain("x = 1", topic="magia")
+
+    def test_translates_spanish_program_and_keeps_strings_comments(self):
+        source = '''# imprimir se conserva en comentario
+edad = 20
+si edad >= 18:
+    imprimir("si edad >= 18")
+sino_si edad == 17:
+    imprimir("menor")
+sino:
+    imprimir("otro")
+'''
+        result = translate(source)
+        self.assertIn("if edad >= 18:", result)
+        self.assertIn("elif edad == 17:", result)
+        self.assertIn("else:", result)
+        self.assertIn('print("si edad >= 18")', result)
+        self.assertIn("# imprimir se conserva en comentario", result)
+        compile(result, "<tradupython>", "exec")
+
+    def test_translates_loops_and_boolean_operators(self):
+        result = translate("para numero en rango(3):\n    si numero > 0 y no falso:\n        imprimir(numero)\n")
+        self.assertIn("for numero in range(3):", result)
+        self.assertIn("if numero > 0 and not False:", result)
+
+    def test_rejects_invalid_translated_syntax(self):
+        with self.assertRaises(TranslationError):
+            translate("si verdadero imprimir('hola')")
 
 
 if __name__ == "__main__":

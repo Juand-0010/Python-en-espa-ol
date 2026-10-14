@@ -1,6 +1,6 @@
 # TraduPython
 
-TraduPython explica en español construcciones comunes de Python para que puedas leerlas con más facilidad. No traduce palabras clave ni ejecuta el programa: analiza su sintaxis y genera una explicación aproximada.
+TraduPython convierte un vocabulario básico de instrucciones en español a código Python y también explica código Python en español. La traducción no ejecuta el programa.
 
 ## Instalar desde esta carpeta
 
@@ -13,6 +13,14 @@ python -m pip install .
 ```bash
 tradupython mi_programa.py
 ```
+
+Para convertir un archivo escrito con palabras clave en español:
+
+```bash
+tradupython mi_programa.py --traducir
+```
+
+La salida es código Python; puedes guardarla desde la terminal con `tradupython mi_programa.py --traducir > programa.py`.
 
 ## Usar desde Python
 
@@ -27,6 +35,25 @@ if edad >= 18:
 
 print(explain(codigo))
 ```
+
+Para traducir código escrito en español desde Python:
+
+```python
+from tradupython import translate
+
+codigo_espanol = """\
+edad = 20
+si edad >= 18:
+    imprimir("Puede entrar")
+sino:
+    imprimir("Todavía no")
+"""
+
+codigo_python = translate(codigo_espanol)
+print(codigo_python)
+```
+
+El vocabulario inicial incluye `si`, `sino`, `sino_si`, `para`, `en`, `mientras`, `funcion`, `retornar`, `clase`, `intentar`, `excepto`, `finalmente`, `importar`, `desde`, `como`, `con`, `y`, `o`, `no`, `es`, `verdadero`, `falso`, `nulo`, `imprimir`, `longitud`, `rango` y `entrada`. Las palabras de este vocabulario quedan reservadas: si se usan como nombres de variables o funciones también se convierten. El texto en cadenas, comentarios y atributos después de un punto se conserva.
 
 Para estudiar solo las variables:
 
@@ -66,7 +93,7 @@ El tema de expresiones describe operaciones aritméticas, comparaciones, lógica
 
 ## Plan de trabajo
 
-El proyecto avanzará por temas pequeños. Cada etapa añadirá explicaciones en español, ejemplos de entrada y salida, y documentación de sus límites. La meta es que una persona pueda entender qué hace un programa Python sin que la herramienta altere ni ejecute ese programa.
+El proyecto avanza por temas pequeños. Cada etapa añade ejemplos de entrada y salida y documenta sus límites. La herramienta puede convertir vocabulario español a sintaxis Python, pero nunca ejecuta el código por su cuenta.
 
 1. **Variables y valores — inicial.** Explica asignaciones y lecturas visibles. El recuento es aproximado y no distingue por completo los ámbitos ni los caminos de ejecución.
 2. **Operadores y expresiones — disponible.** Explicar cálculos, comparaciones, lógica booleana, pertenencia, índices y llamadas, con ejemplos de cómo se combinan para producir valores.
@@ -75,7 +102,7 @@ El proyecto avanzará por temas pequeños. Cada etapa añadirá explicaciones en
 5. **Colecciones — inicial.** Describe listas, tuplas, conjuntos, diccionarios y accesos por índice o clave.
 6. **Clases y objetos — inicial.** Resume clases, bases, métodos y asignaciones directas en el cuerpo de clase.
 7. **Errores e importaciones — inicial.** Describe bloques `try`/`except`/`else`/`finally`, `raise` e importaciones.
-8. **Experiencia de uso — inicial.** La CLI acepta temas y una opción para anteponer números a las líneas de la explicación.
+8. **Experiencia de uso — inicial.** La CLI acepta temas, numera la explicación y convierte archivos con `--traducir`.
 9. **Calidad y publicación — inicial.** Hay pruebas automatizadas e integración continua para Python 3.10–3.12. La cobertura y la precisión deben crecer con más ejemplos reales.
 
 **Criterio para cada etapa:** que la salida sea comprensible, conserve los nombres y literales originales, no ejecute el código y reconozca explícitamente las construcciones que todavía no explica. Las advertencias sobre variables serán orientativas, porque un análisis estático sencillo no puede asegurar todos los efectos de una ejecución.
