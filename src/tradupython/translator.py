@@ -3,12 +3,91 @@
 from __future__ import annotations
 
 import ast
+import io
+import tokenize
 from collections import Counter
 from pathlib import Path
 
 
 class TranslationError(ValueError):
     """Error al analizar el código Python de entrada."""
+
+
+_SPANISH_WORDS = {
+    "si": "if",
+    "sino": "else",
+    "sino_si": "elif",
+    "para": "for",
+    "en": "in",
+    "mientras": "while",
+    "funcion": "def",
+    "definir": "def",
+    "retornar": "return",
+    "romper": "break",
+    "continuar": "continue",
+    "pasar": "pass",
+    "clase": "class",
+    "intentar": "try",
+    "excepto": "except",
+    "finalmente": "finally",
+    "lanzar": "raise",
+    "importar": "import",
+    "desde": "from",
+    "como": "as",
+    "con": "with",
+    "y": "and",
+    "o": "or",
+    "no": "not",
+    "es": "is",
+    "verdadero": "True",
+    "falso": "False",
+    "nulo": "None",
+    "imprimir": "print",
+    "longitud": "len",
+    "rango": "range",
+    "entrada": "input",
+    "enumerar": "enumerate",
+    "tipo": "type",
+}
+
+
+def translate(source: str) -> str:
+    """Convierte palabras clave y funciones incorporadas españolas a Python.
+
+    Las palabras del vocabulario son reservadas y se convierten también si se
+    usan como identificadores. El texto de cadenas y comentarios se conserva.
+    """
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
+    except (tokenize.TokenError, IndentationError) as exc:
+        raise TranslationError(f"No se pudo leer el código: {exc}") from exc
+
+    line_offsets = [0]
+    for line in source.splitlines(keepends=True):
+        line_offsets.append(line_offsets[-1] + len(line))
+
+    replacements: list[tuple[int, int, str]] = []
+    significant: list[tokenize.TokenInfo] = []
+    for token in tokens:
+        if token.type == tokenize.NAME and token.string in _SPANISH_WORDS:
+            previous = next((item for item in reversed(significant) if item.type not in (tokenize.NL, tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT, tokenize.COMMENT)), None)
+            # Atributos como objeto.si conservan su nombre.
+            if previous is None or previous.string != ".":
+                start = line_offsets[token.start[0] - 1] + token.start[1]
+                end = line_offsets[token.end[0] - 1] + token.end[1]
+                replacements.append((start, end, _SPANISH_WORDS[token.string]))
+        if token.type not in (tokenize.ENCODING, tokenize.ENDMARKER):
+            significant.append(token)
+
+    translated = source
+    for start, end, replacement in reversed(replacements):
+        translated = translated[:start] + replacement + translated[end:]
+    try:
+        ast.parse(translated)
+    except SyntaxError as exc:
+        where = f" en la línea {exc.lineno}" if exc.lineno else ""
+        raise TranslationError(f"El código traducido no es Python válido{where}: {exc.msg}") from exc
+    return translated
 
 
 def _expression(node: ast.AST) -> str:
