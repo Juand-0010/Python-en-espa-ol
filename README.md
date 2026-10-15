@@ -2,7 +2,7 @@
 
 TraduPython convierte un vocabulario básico de instrucciones en español a código Python y también explica código Python en español. La traducción no ejecuta el programa.
 
-Versión actual del proyecto: **0.2.1 (alfa)**. La publicación en PyPI aún no se ha realizado.
+Versión actual del proyecto: **0.3.0 (alfa)**. La publicación en PyPI aún no se ha realizado.
 
 ## Instalar desde esta carpeta
 
@@ -57,7 +57,11 @@ codigo_python = translate(codigo_espanol)
 print(codigo_python)
 ```
 
-El vocabulario incluye palabras de control (`si`, `sino`, `sino_si`, `para`, `mientras`), definiciones y errores (`funcion`, `clase`, `retornar`, `intentar`, `excepto`, `finalmente`, `lanzar`), importaciones (`importar`, `desde`, `como`), lógica (`y`, `o`, `no`), valores (`verdadero`, `falso`, `nulo`) y funciones habituales (`imprimir`, `longitud`, `rango`, `entrada`, `suma`, `minimo`, `maximo`, entre otras). También reconoce comparaciones como `mayor que`, `mayor o igual que`, `igual a` y `distinto de`.
+El vocabulario cubre las palabras clave habituales de control, funciones, clases, excepciones, importaciones, operadores lógicos, declaraciones `global`/`nonlocal`, funciones asíncronas y patrones `match`/`case`. También ofrece nombres españoles para numerosos built-ins y tipos (`imprimir`, `longitud`, `rango`, `entrada`, `lista`, `diccionario`, `instancia_de`, entre otros) y comparaciones escritas como `mayor que`, `mayor o igual que`, `igual a` y `distinto de`. Las palabras ambiguas como `de`, `caso`, `global` y `lambda` se reconocen en posiciones concretas; el acento grave sigue permitiendo usar literalmente un nombre reservado.
+
+### Alcance de la traducción
+
+TraduPython traduce código escrito con su vocabulario español a Python; no es todavía una traducción completa de toda la sintaxis ni de todas las bibliotecas del ecosistema. La sintaxis nueva de Python debe añadirse y probarse por versión. Las expresiones de tipo, anotaciones, patrones avanzados, identificadores españoles con tilde, cadenas de formato con expresiones y algunas formas de importación requieren cobertura adicional. Los built-ins no incluidos pueden escribirse con su nombre original. Las palabras traducidas se consideran reservadas, salvo las reglas contextuales descritas arriba; rodea un nombre reservado con acentos graves para conservarlo como identificador.
 
 Las palabras del vocabulario se traducen cuando aparecen como identificadores. Para usar una de ellas literalmente como nombre, enciérrala entre acentos graves: `` `si` = 3 `` se convierte en `si = 3`. El texto en cadenas, comentarios y atributos después de un punto se conserva.
 
@@ -113,7 +117,7 @@ El proyecto avanza por temas pequeños. Cada etapa añade ejemplos de entrada y 
 
 **Criterio para cada etapa:** que la salida sea comprensible, conserve los nombres y literales originales, no ejecute el código y reconozca explícitamente las construcciones que todavía no explica. Las advertencias sobre variables serán orientativas, porque un análisis estático sencillo no puede asegurar todos los efectos de una ejecución.
 
-**Orden de trabajo:** las primeras versiones de todos los temas y el flujo de pruebas están implementados. Los siguientes avances deben mejorar precisión y cobertura con ejemplos reales. Cada avance se guardará en un commit pequeño en GitHub.
+**Orden de trabajo:** la base del traductor, los temas de explicación y la CLI están implementados. La etapa de cobertura del lenguaje sigue abierta: cada versión de Python soportada debe tener una lista de palabras clave, operadores, built-ins y formas gramaticales, con ejemplos que se traduzcan, compilen y mantengan su comportamiento. Cada avance se guardará en commits pequeños en GitHub.
 
 ## Desarrollo
 

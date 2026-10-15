@@ -67,7 +67,73 @@ _SPANISH_WORDS = {
     "asincrona": "async",
     "esperar": "await",
     "ceder": "yield",
+    "global": "global",
+    "no_local": "nonlocal",
+    "lambda": "lambda",
+    "coincidir": "match",
+    "caso": "case",
+    "desestructurar": "case",
+    "borrar": "del",
+    "asíncrona": "async",
+    "asíncrono": "async",
+    "espera": "await",
+    "ceda": "yield",
+    "de": "from",
+    "verdadero": "True",
+    "falso": "False",
+    "ninguno": "None",
+    "nada": "None",
+    "bytes": "bytes",
+    "bytearray": "bytearray",
+    "complejo": "complex",
+    "lista": "list",
+    "tupla": "tuple",
+    "conjunto": "set",
+    "diccionario": "dict",
+    "congelado": "frozenset",
+    "ayuda": "help",
+    "dirigir": "dir",
+    "identidad": "id",
+    "hash": "hash",
+    "representar": "repr",
+    "ascii": "ascii",
+    "formatear": "format",
+    "caracter": "chr",
+    "codigo": "ord",
+    "binario": "bin",
+    "octal": "oct",
+    "hexadecimal": "hex",
+    "absoluto": "abs",
+    "potencia": "pow",
+    "divmod": "divmod",
+    "filtrar": "filter",
+    "mapear": "map",
+    "iterar": "iter",
+    "siguiente": "next",
+    "reducir": "sum",
+    "agregar": "setattr",
+    "obtener": "getattr",
+    "tiene_atributo": "hasattr",
+    "quitar_atributo": "delattr",
+    "instancia_de": "isinstance",
+    "subclase_de": "issubclass",
+    "superclase": "super",
+    "propiedad": "property",
+    "estatico": "staticmethod",
+    "estatica": "staticmethod",
+    "metodo_de_clase": "classmethod",
+    "compilar": "compile",
+    "evaluar": "eval",
+    "ejecutar": "exec",
+    "espacio_nombres": "globals",
+    "locales": "locals",
+    "importar_modulo": "__import__",
+    "crear": "object",
 }
+
+# Palabras ambiguas que solo se convierten donde Python espera una palabra
+# clave. El resto del vocabulario conserva el modo histórico de traducción.
+_CONTEXTUAL_WORDS = {"de", "global", "no_local", "caso", "coincidir", "lambda"}
 
 _SPANISH_OPERATORS = {
     ("no", "es", "igual", "a"): "!=",
@@ -144,7 +210,25 @@ def translate(source: str) -> str:
         if index not in consumed and token.type == tokenize.NAME and token.string in _SPANISH_WORDS:
             previous = next((item for item in reversed(significant) if item.type not in (tokenize.NL, tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT, tokenize.COMMENT)), None)
             # Atributos como objeto.si conservan su nombre.
-            if previous is None or previous.string != ".":
+            contextual = token.string in _CONTEXTUAL_WORDS
+            next_token = next((item for item in tokens[index + 1:] if item.type not in (tokenize.NL, tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT, tokenize.COMMENT)), None)
+            allowed = not contextual
+            line_prefix = source.splitlines()[token.start[0] - 1][:token.start[1]]
+            at_statement_start = not line_prefix.strip()
+            if token.string in {"global", "no_local"}:
+                allowed = at_statement_start or previous is not None and previous.string == ";"
+            elif token.string == "de":
+                allowed = previous is not None and previous.string == "desde" and next_token is not None and next_token.type == tokenize.NAME
+            elif token.string == "coincidir":
+                allowed = at_statement_start
+            elif token.string == "caso":
+                allowed = at_statement_start and any(
+                    item.string in {"coincidir", "match"} and item.start[0] < token.start[0]
+                    for item in significant
+                )
+            elif token.string == "lambda":
+                allowed = next_token is not None and next_token.type == tokenize.NAME
+            if (previous is None or previous.string != ".") and allowed:
                 start = line_offsets[token.start[0] - 1] + token.start[1]
                 end = line_offsets[token.end[0] - 1] + token.end[1]
                 replacements.append((start, end, _SPANISH_WORDS[token.string]))

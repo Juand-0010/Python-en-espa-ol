@@ -12,7 +12,7 @@ from tradupython import TranslationError, __version__, explain, translate
 
 class ExplainTests(unittest.TestCase):
     def test_version_matches_release_metadata(self):
-        self.assertEqual(__version__, "0.2.1")
+        self.assertEqual(__version__, "0.3.0")
 
     def test_variable_report_separates_function_scopes(self):
         source = '''
@@ -123,6 +123,63 @@ si nombre es distinto de "" y nombre no es "anónimo":
         result = translate("total = suma([1, 2])\nmayor = maximo([1, 2])\n")
         self.assertIn("sum([1, 2])", result)
         self.assertIn("max([1, 2])", result)
+
+    def test_translates_extended_keywords_and_builtin_types(self):
+        source = '''
+funcion crear_lista(valores):
+    global total
+    resultado = lambda x: x * 2
+    devolver = lista(valores)
+    retornar resultado(devolver)
+coincidir 2:
+    caso 1:
+        pasar
+    caso _:
+        imprimir("otro")
+'''
+        result = translate(source)
+        self.assertIn("global total", result)
+        self.assertIn("lambda x:", result)
+        self.assertIn("list(valores)", result)
+        self.assertIn("match 2:", result)
+        self.assertIn("case _:", result)
+        compile(result, "<tradupython>", "exec")
+
+    def test_translates_nonlocal_declaration(self):
+        result = translate("funcion exterior():\n    dato = 1\n    funcion interior():\n        no_local dato\n        dato = 2\n")
+        self.assertIn("nonlocal dato", result)
+        compile(result, "<tradupython>", "exec")
+
+    def test_does_not_rewrite_ambiguous_words_as_identifiers(self):
+        source = '''
+de = "dato"
+caso = de
+globales = caso
+texto = "de caso lambda"
+objeto.de = caso
+'''
+        result = translate(source)
+        self.assertIn("de = \"dato\"", result)
+        self.assertIn("caso = de", result)
+        self.assertIn("globales = caso", result)
+        self.assertIn("texto = \"de caso lambda\"", result)
+        self.assertIn("objeto.de = caso", result)
+
+    def test_translates_async_generators_and_context_managers(self):
+        source = '''
+asincrona funcion cargar():
+    async_forbidden = 1
+    esperar tarea()
+    ceder async_forbidden
+con abrir("datos.txt") como archivo:
+    imprimir(archivo.read())
+'''
+        result = translate(source)
+        self.assertIn("async def cargar():", result)
+        self.assertIn("await tarea()", result)
+        self.assertIn("yield async_forbidden", result)
+        self.assertIn("with open(\"datos.txt\") as archivo:", result)
+        compile(result, "<tradupython>", "exec")
 
     def test_translated_program_keeps_expected_behavior(self):
         source = '''

@@ -2,6 +2,6 @@
 
 from .translator import TranslationError, explain, explain_file, translate
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 __all__ = ["TranslationError", "explain", "explain_file", "translate", "__version__"]
