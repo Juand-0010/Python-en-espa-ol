@@ -2,6 +2,8 @@
 
 TraduPython convierte un vocabulario básico de instrucciones en español a código Python y también explica código Python en español. La traducción no ejecuta el programa.
 
+Versión actual del proyecto: **0.2.0 (alfa)**. La publicación en PyPI aún no se ha realizado.
+
 ## Instalar desde esta carpeta
 
 ```bash
@@ -132,3 +134,5 @@ python -m unittest discover -s tests -v
 ## Licencia
 
 MIT
+
+Consulta [RELEASING.md](RELEASING.md) para construir y preparar una publicación.

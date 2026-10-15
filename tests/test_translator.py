@@ -1,11 +1,19 @@
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
 import unittest
 from contextlib import redirect_stdout
 from io import StringIO
 
-from tradupython import TranslationError, explain, translate
+from tradupython import TranslationError, __version__, explain, translate
 
 
 class ExplainTests(unittest.TestCase):
+    def test_version_matches_release_metadata(self):
+        self.assertEqual(__version__, "0.2.0")
+
     def test_reports_all_supported_topics(self):
         source = '''
 items = [1, 2]
@@ -112,6 +120,23 @@ imprimir(suma_hasta(5))
                 "__builtins__": {"print": print, "range": range},
             })
         self.assertEqual(output.getvalue(), "10\n")
+
+    def test_cli_executes_only_when_requested(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source_path = Path(folder) / "programa_espanol.py"
+            source_path.write_text("imprimir(3 * 2)\n", encoding="utf-8")
+            environment = os.environ.copy()
+            source_root = str(Path(__file__).resolve().parents[1] / "src")
+            environment["PYTHONPATH"] = source_root + os.pathsep + environment.get("PYTHONPATH", "")
+            result = subprocess.run(
+                [sys.executable, "-m", "tradupython.cli", str(source_path), "--ejecutar"],
+                capture_output=True,
+                text=True,
+                env=environment,
+                check=False,
+            )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "6\n")
 
 
 if __name__ == "__main__":

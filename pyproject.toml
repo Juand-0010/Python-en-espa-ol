@@ -1,15 +1,33 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "tradupython"
-version = "0.1.0"
+version = "0.2.0"
 description = "Traduce instrucciones de español a Python y explica código Python."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Juand-0010" }]
+keywords = ["python", "español", "traducción", "educación", "programación"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Education",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Education",
+  "Topic :: Software Development :: Code Generators",
+]
+
+[project.urls]
+Homepage = "https://github.com/Juand-0010/Python-en-espa-ol"
+Repository = "https://github.com/Juand-0010/Python-en-espa-ol"
+Issues = "https://github.com/Juand-0010/Python-en-espa-ol/issues"
 
 [project.scripts]
 tradupython = "tradupython.cli:main"
