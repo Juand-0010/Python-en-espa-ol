@@ -53,7 +53,9 @@ codigo_python = translate(codigo_espanol)
 print(codigo_python)
 ```
 
-El vocabulario inicial incluye `si`, `sino`, `sino_si`, `para`, `en`, `mientras`, `funcion`, `retornar`, `clase`, `intentar`, `excepto`, `finalmente`, `importar`, `desde`, `como`, `con`, `y`, `o`, `no`, `es`, `verdadero`, `falso`, `nulo`, `imprimir`, `longitud`, `rango` y `entrada`. Las palabras de este vocabulario quedan reservadas: si se usan como nombres de variables o funciones también se convierten. El texto en cadenas, comentarios y atributos después de un punto se conserva.
+El vocabulario incluye palabras de control (`si`, `sino`, `sino_si`, `para`, `mientras`), definiciones y errores (`funcion`, `clase`, `retornar`, `intentar`, `excepto`, `finalmente`, `lanzar`), importaciones (`importar`, `desde`, `como`), lógica (`y`, `o`, `no`), valores (`verdadero`, `falso`, `nulo`) y funciones habituales (`imprimir`, `longitud`, `rango`, `entrada`, `suma`, `minimo`, `maximo`, entre otras). También reconoce comparaciones como `mayor que`, `mayor o igual que`, `igual a` y `distinto de`.
+
+Las palabras del vocabulario se traducen cuando aparecen como identificadores. Para usar una de ellas literalmente como nombre, enciérrala entre acentos graves: `` `si` = 3 `` se convierte en `si = 3`. El texto en cadenas, comentarios y atributos después de un punto se conserva.
 
 Para estudiar solo las variables:
 

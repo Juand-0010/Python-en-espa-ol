@@ -73,6 +73,27 @@ sino:
         with self.assertRaises(TranslationError):
             translate("si verdadero imprimir('hola')")
 
+    def test_translates_written_comparison_operators(self):
+        source = '''
+si edad es mayor o igual que 18:
+    imprimir("adulto")
+si nombre es distinto de "" y nombre no es "anónimo":
+    imprimir(nombre)
+'''
+        result = translate(source)
+        self.assertIn("if edad >= 18:", result)
+        self.assertIn('if nombre != "" and nombre != "anónimo":', result)
+
+    def test_escaped_reserved_word_can_be_an_identifier(self):
+        result = translate("`si` = 4\nimprimir(`si`)\n")
+        self.assertIn("si = 4", result)
+        self.assertIn("print(si)", result)
+
+    def test_translates_more_common_builtins(self):
+        result = translate("total = suma([1, 2])\nmayor = maximo([1, 2])\n")
+        self.assertIn("sum([1, 2])", result)
+        self.assertIn("max([1, 2])", result)
+
 
 if __name__ == "__main__":
     unittest.main()

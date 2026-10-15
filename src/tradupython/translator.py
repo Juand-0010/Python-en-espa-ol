@@ -48,6 +48,41 @@ _SPANISH_WORDS = {
     "entrada": "input",
     "enumerar": "enumerate",
     "tipo": "type",
+    "suma": "sum",
+    "minimo": "min",
+    "maximo": "max",
+    "ordenar": "sorted",
+    "reverso": "reversed",
+    "todos": "all",
+    "cualquiera": "any",
+    "entero": "int",
+    "decimal": "float",
+    "cadena": "str",
+    "booleano": "bool",
+    "abrir": "open",
+    "redondear": "round",
+    "eliminar": "del",
+    "afirmar": "assert",
+    "asincrona": "async",
+    "esperar": "await",
+    "ceder": "yield",
+}
+
+_SPANISH_OPERATORS = {
+    ("no", "es", "igual", "a"): "!=",
+    ("no", "es"): "!=",
+    ("es", "distinto", "de"): "!=",
+    ("distinto", "de"): "!=",
+    ("es", "igual", "a"): "==",
+    ("igual", "a"): "==",
+    ("es", "mayor", "o", "igual", "que"): ">=",
+    ("mayor", "o", "igual", "que"): ">=",
+    ("es", "menor", "o", "igual", "que"): "<=",
+    ("menor", "o", "igual", "que"): "<=",
+    ("es", "mayor", "que"): ">",
+    ("mayor", "que"): ">",
+    ("es", "menor", "que"): "<",
+    ("menor", "que"): "<",
 }
 
 
@@ -67,9 +102,45 @@ def translate(source: str) -> str:
         line_offsets.append(line_offsets[-1] + len(line))
 
     replacements: list[tuple[int, int, str]] = []
+    consumed: set[int] = set()
+    # Los acentos graves permiten escribir literalmente un nombre reservado:
+    # `si` se convierte en el identificador Python si, sin traducirlo a if.
+    for index in range(len(tokens) - 2):
+        opening, name, closing = tokens[index:index + 3]
+        if opening.type == tokenize.OP and opening.string == "`" and name.type == tokenize.NAME and closing.type == tokenize.OP and closing.string == "`":
+            start = line_offsets[opening.start[0] - 1] + opening.start[1]
+            end = line_offsets[closing.end[0] - 1] + closing.end[1]
+            replacements.append((start, end, name.string))
+            consumed.update((index, index + 1, index + 2))
+    # Reconoce frases de comparación como un solo operador, respetando cadenas
+    # y comentarios, que la tokenización identifica como tipos separados.
+    significant_indices = [index for index, token in enumerate(tokens) if index not in consumed and token.type not in (tokenize.ENCODING, tokenize.ENDMARKER, tokenize.NL, tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT, tokenize.COMMENT)]
+    patterns = sorted(_SPANISH_OPERATORS.items(), key=lambda item: len(item[0]), reverse=True)
+    position = 0
+    while position < len(significant_indices):
+        matched = False
+        for phrase, operator in patterns:
+            indices = significant_indices[position:position + len(phrase)]
+            if len(indices) != len(phrase):
+                continue
+            phrase_tokens = [tokens[index] for index in indices]
+            if tuple(token.string for token in phrase_tokens) != phrase:
+                continue
+            if len({token.start[0] for token in phrase_tokens}) != 1:
+                continue
+            start = line_offsets[phrase_tokens[0].start[0] - 1] + phrase_tokens[0].start[1]
+            end = line_offsets[phrase_tokens[-1].end[0] - 1] + phrase_tokens[-1].end[1]
+            replacements.append((start, end, operator))
+            consumed.update(indices)
+            position += len(phrase)
+            matched = True
+            break
+        if not matched:
+            position += 1
+
     significant: list[tokenize.TokenInfo] = []
-    for token in tokens:
-        if token.type == tokenize.NAME and token.string in _SPANISH_WORDS:
+    for index, token in enumerate(tokens):
+        if index not in consumed and token.type == tokenize.NAME and token.string in _SPANISH_WORDS:
             previous = next((item for item in reversed(significant) if item.type not in (tokenize.NL, tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT, tokenize.COMMENT)), None)
             # Atributos como objeto.si conservan su nombre.
             if previous is None or previous.string != ".":
@@ -80,7 +151,7 @@ def translate(source: str) -> str:
             significant.append(token)
 
     translated = source
-    for start, end, replacement in reversed(replacements):
+    for start, end, replacement in sorted(replacements, key=lambda item: item[0], reverse=True):
         translated = translated[:start] + replacement + translated[end:]
     try:
         ast.parse(translated)
