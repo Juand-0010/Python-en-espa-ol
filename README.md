@@ -2,7 +2,7 @@
 
 TraduPython convierte un vocabulario básico de instrucciones en español a código Python y también explica código Python en español. La traducción no ejecuta el programa.
 
-Versión actual del proyecto: **0.2.0 (alfa)**. La publicación en PyPI aún no se ha realizado.
+Versión actual del proyecto: **0.2.1 (alfa)**. La publicación en PyPI aún no se ha realizado.
 
 ## Instalar desde esta carpeta
 
@@ -91,7 +91,7 @@ Por ejemplo, para revisar condiciones y ciclos sin los demás temas:
 tradupython mi_programa.py --tema decisiones
 ```
 
-El informe de variables explica que no es necesario declararlas antes de asignarles un valor, cuenta asignaciones y lecturas visibles en el archivo, y señala nombres que no se leen o se reasignan. Recomienda nombres descriptivos y explica que las anotaciones de tipo son opcionales. Estas cuentas son aproximadas: no determinan si el código se ejecutará ni si una variable es necesaria en todos los caminos.
+El informe de variables explica que no es necesario declararlas antes de asignarles un valor, separa el módulo de las funciones y clases, y asocia lecturas sencillas de funciones internas con variables de ámbitos exteriores. También señala nombres que no se leen o se reasignan. Es una aproximación estática: no determina si una variable es necesaria en todos los caminos ni cubre todos los casos de ámbitos dinámicos.
 
 La explicación general conserva los nombres de variables, funciones, módulos y cadenas para no cambiar su significado. Incluye asignaciones, condiciones, ciclos, funciones, clases, llamadas e importaciones; las construcciones aún no reconocidas se muestran como instrucciones Python.
 
@@ -109,7 +109,7 @@ El proyecto avanza por temas pequeños. Cada etapa añade ejemplos de entrada y 
 6. **Clases y objetos — inicial.** Resume clases, bases, métodos y asignaciones directas en el cuerpo de clase.
 7. **Errores e importaciones — inicial.** Describe bloques `try`/`except`/`else`/`finally`, `raise` e importaciones.
 8. **Experiencia de uso — inicial.** La CLI acepta temas, numera la explicación y convierte archivos con `--traducir`.
-9. **Calidad y publicación — inicial.** Hay pruebas automatizadas e integración continua para Python 3.10–3.12, incluida una comprobación del comportamiento de un programa traducido. La cobertura y la precisión deben crecer con más ejemplos reales.
+9. **Calidad y publicación — inicial.** Hay pruebas automatizadas e integración continua para Python 3.10–3.13, incluida una comprobación del comportamiento de un programa traducido. La cobertura y la precisión deben crecer con más ejemplos reales.
 
 **Criterio para cada etapa:** que la salida sea comprensible, conserve los nombres y literales originales, no ejecute el código y reconozca explícitamente las construcciones que todavía no explica. Las advertencias sobre variables serán orientativas, porque un análisis estático sencillo no puede asegurar todos los efectos de una ejecución.
 

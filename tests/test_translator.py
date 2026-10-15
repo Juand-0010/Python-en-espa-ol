@@ -12,7 +12,27 @@ from tradupython import TranslationError, __version__, explain, translate
 
 class ExplainTests(unittest.TestCase):
     def test_version_matches_release_metadata(self):
-        self.assertEqual(__version__, "0.2.0")
+        self.assertEqual(__version__, "0.2.1")
+
+    def test_variable_report_separates_function_scopes(self):
+        source = '''
+valor = 1
+def mostrar():
+    print(valor)
+def duplicar(valor):
+    valor += 1
+    return valor
+'''
+        report = explain(source, topic="variables")
+        self.assertIn("ámbito de módulo", report)
+        self.assertIn("ámbito de función «mostrar»", report)
+        self.assertIn("ámbito de función «duplicar»", report)
+        self.assertIn("«valor» se asigna 1 vez/veces, empezando con el valor 1; se lee 1 vez/veces", report)
+        self.assertIn("«valor» se asigna 2 vez/veces; se lee 2 vez/veces", report)
+
+    def test_variable_report_counts_closure_reads_in_outer_scope(self):
+        report = explain("def exterior():\n    dato = 4\n    def interior():\n        return dato\n    return interior()", topic="variables")
+        self.assertIn("«dato» se asigna 1 vez/veces, empezando con el valor 4; se lee 1 vez/veces", report)
 
     def test_reports_all_supported_topics(self):
         source = '''

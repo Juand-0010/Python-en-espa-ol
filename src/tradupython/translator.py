@@ -6,6 +6,7 @@ import ast
 import io
 import tokenize
 from collections import Counter
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -231,63 +232,229 @@ def _target_names(target: ast.AST) -> list[str]:
     return []
 
 
+@dataclass
+class _VariableScope:
+    label: str
+    kind: str
+    parent: _VariableScope | None = None
+    stores: Counter[str] = field(default_factory=Counter)
+    loads: Counter[str] = field(default_factory=Counter)
+    reads: Counter[str] = field(default_factory=Counter)
+    first_values: dict[str, ast.AST] = field(default_factory=dict)
+    annotated: set[str] = field(default_factory=set)
+    globals: set[str] = field(default_factory=set)
+    nonlocals: set[str] = field(default_factory=set)
+
+
+class _VariableScopeCollector(ast.NodeVisitor):
+    """Collects assignments and reads without folding nested scopes together."""
+
+    def __init__(self) -> None:
+        self.root = _VariableScope("módulo", "module")
+        self.current = self.root
+        self.scopes = [self.root]
+
+    def _store(self, name: str, value: ast.AST | None = None) -> None:
+        self.current.stores[name] += 1
+        if value is not None:
+            self.current.first_values.setdefault(name, value)
+
+    def _target(self, target: ast.AST, value: ast.AST | None = None, *, annotated: bool = False) -> None:
+        if isinstance(target, ast.Name):
+            self._store(target.id, value)
+            if annotated:
+                self.current.annotated.add(target.id)
+        elif isinstance(target, (ast.Tuple, ast.List)):
+            for item in target.elts:
+                self._target(item, value, annotated=annotated)
+        elif isinstance(target, ast.Starred):
+            self._target(target.value, value, annotated=annotated)
+        else:
+            self.visit(target)
+
+    def visit_Name(self, node: ast.Name) -> None:
+        if isinstance(node.ctx, ast.Load):
+            self.current.loads[node.id] += 1
+        elif isinstance(node.ctx, ast.Store):
+            self._store(node.id)
+
+    def visit_Assign(self, node: ast.Assign) -> None:
+        self.visit(node.value)
+        for target in node.targets:
+            self._target(target, node.value)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        self.visit(node.annotation)
+        if node.value:
+            self.visit(node.value)
+        self._target(node.target, node.value, annotated=True)
+
+    def visit_AugAssign(self, node: ast.AugAssign) -> None:
+        if isinstance(node.target, ast.Name):
+            self.current.loads[node.target.id] += 1
+        else:
+            self.visit(node.target)
+        self.visit(node.value)
+        self._target(node.target)
+
+    def visit_For(self, node: ast.For | ast.AsyncFor) -> None:
+        self.visit(node.iter)
+        self._target(node.target, node.iter)
+        for statement in node.body + node.orelse:
+            self.visit(statement)
+
+    visit_AsyncFor = visit_For
+
+    def visit_FunctionDef(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+        self._store(node.name)
+        for decorator in node.decorator_list:
+            self.visit(decorator)
+        for default in [*node.args.defaults, *node.args.kw_defaults]:
+            if default:
+                self.visit(default)
+        for argument in [*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs]:
+            if argument.annotation:
+                self.visit(argument.annotation)
+        if node.args.vararg and node.args.vararg.annotation:
+            self.visit(node.args.vararg.annotation)
+        if node.args.kwarg and node.args.kwarg.annotation:
+            self.visit(node.args.kwarg.annotation)
+        if node.returns:
+            self.visit(node.returns)
+        kind = "función asíncrona" if isinstance(node, ast.AsyncFunctionDef) else "función"
+        scope = _VariableScope(f"{kind} «{node.name}»", "function", self.current)
+        self.scopes.append(scope)
+        previous = self.current
+        self.current = scope
+        arguments = [*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs]
+        arguments.extend(arg for arg in (node.args.vararg, node.args.kwarg) if arg)
+        for argument in arguments:
+            self._store(argument.arg)
+        for statement in node.body:
+            self.visit(statement)
+        self.current = previous
+
+    visit_AsyncFunctionDef = visit_FunctionDef
+
+    def visit_Lambda(self, node: ast.Lambda) -> None:
+        for default in [*node.args.defaults, *node.args.kw_defaults]:
+            if default:
+                self.visit(default)
+        scope = _VariableScope("función lambda", "function", self.current)
+        self.scopes.append(scope)
+        previous = self.current
+        self.current = scope
+        for argument in [*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs]:
+            self._store(argument.arg)
+        for argument in (node.args.vararg, node.args.kwarg):
+            if argument:
+                self._store(argument.arg)
+        self.visit(node.body)
+        self.current = previous
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self._store(node.name)
+        for expression in [*node.decorator_list, *node.bases, *(keyword.value for keyword in node.keywords)]:
+            self.visit(expression)
+        scope = _VariableScope(f"clase «{node.name}»", "class", self.current)
+        self.scopes.append(scope)
+        previous = self.current
+        self.current = scope
+        for statement in node.body:
+            self.visit(statement)
+        self.current = previous
+
+    def visit_Import(self, node: ast.Import) -> None:
+        for alias in node.names:
+            self._store(alias.asname or alias.name.split(".")[0])
+
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        for alias in node.names:
+            if alias.name != "*":
+                self._store(alias.asname or alias.name)
+
+    def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:
+        if node.type:
+            self.visit(node.type)
+        if node.name:
+            self._store(node.name)
+        for statement in node.body:
+            self.visit(statement)
+
+    def visit_Global(self, node: ast.Global) -> None:
+        self.current.globals.update(node.names)
+
+    def visit_Nonlocal(self, node: ast.Nonlocal) -> None:
+        self.current.nonlocals.update(node.names)
+
+
+def _resolve_variable_scope(scope: _VariableScope, name: str, root: _VariableScope) -> _VariableScope | None:
+    if name in scope.globals:
+        return root if root.stores[name] else None
+    if name in scope.nonlocals:
+        parent = scope.parent
+        while parent:
+            if parent.kind == "function" and parent.stores[name]:
+                return parent
+            parent = parent.parent
+        return None
+    if scope.stores[name]:
+        return scope
+    parent = scope.parent
+    if scope.kind == "function":
+        while parent and parent.kind == "class":
+            parent = parent.parent
+    while parent:
+        if parent.stores[name]:
+            return parent
+        parent = parent.parent
+    return None
+
+
 def _variable_report(tree: ast.Module) -> list[str]:
-    """Resume dónde aparecen los nombres y cómo se asignan en el módulo."""
-    stores: Counter[str] = Counter()
-    loads: Counter[str] = Counter()
-    first_values: dict[str, ast.AST] = {}
-    annotated: set[str] = set()
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Name):
-            if isinstance(node.ctx, ast.Store):
-                stores[node.id] += 1
-            elif isinstance(node.ctx, ast.Load):
-                loads[node.id] += 1
-        elif isinstance(node, ast.AnnAssign):
-            annotated.update(_target_names(node.target))
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                for name in _target_names(target):
-                    first_values.setdefault(name, node.value)
-        elif isinstance(node, (ast.AnnAssign, ast.NamedExpr)) and node.value is not None:
-            for name in _target_names(node.target):
-                first_values.setdefault(name, node.value)
-        elif isinstance(node, (ast.For, ast.AsyncFor)):
-            for name in _target_names(node.target):
-                first_values.setdefault(name, node.iter)
+    """Reports variable use per scope and resolves simple closure/global reads."""
+    collector = _VariableScopeCollector()
+    collector.visit(tree)
+    for scope in collector.scopes:
+        for name, count in scope.loads.items():
+            resolved = _resolve_variable_scope(scope, name, collector.root)
+            if resolved:
+                resolved.reads[name] += count
 
     lines = [
         "Variables en Python:",
-        "- No hace falta declarar una variable antes de usarla: se crea al asignarle un valor.",
-        "- Conviene elegir nombres descriptivos y asignar un valor antes de leer la variable.",
-        "- Añadir un tipo (por ejemplo, edad: int = 18) es opcional; ayuda a documentar la intención y a algunas herramientas.",
+        "- No hace falta declarar una variable antes de asignarle un valor.",
+        "- Conviene elegir nombres descriptivos y asignarles un valor antes de leerlas.",
+        "- Las anotaciones de tipo son opcionales; sirven para documentar y para algunas herramientas.",
     ]
-    names = sorted(stores)
-    if not names:
+    scopes_with_assignments = [scope for scope in collector.scopes if scope.stores or scope.loads]
+    if not scopes_with_assignments:
         lines.append("Este código no asigna variables con nombres simples.")
         return lines
-
-    lines.append("Variables encontradas:")
-    for name in names:
-        use_count = loads[name]
-        assignments = stores[name]
-        value = first_values.get(name)
-        detail = f"«{name}» se asigna {assignments} vez/veces"
-        if value is not None:
-            detail += f", empezando con {_expression(value)}"
-        detail += f"; se lee {use_count} vez/veces"
-        if use_count == 0:
-            detail += ". No aparece leída en este código; revisa si la asignación hace falta"
-        elif assignments > 1:
-            detail += ". Se reasigna; comprueba que cada cambio sea intencional"
-        else:
-            detail += ". Su uso está respaldado por una lectura posterior"
-        if name in annotated:
-            detail += ". Tiene una anotación de tipo, que Python no exige para crearla"
-        lines.append(f"- {detail}.")
+    for scope in scopes_with_assignments:
+        lines.append(f"Variables en el ámbito de {scope.label}:")
+        if not scope.stores:
+            lines.append("- Este ámbito no asigna variables propias; sus lecturas pueden corresponder a nombres exteriores o incorporados.")
+        for name in sorted(scope.stores):
+            assignments = scope.stores[name]
+            use_count = scope.reads[name]
+            value = scope.first_values.get(name)
+            detail = f"- «{name}» se asigna {assignments} vez/veces"
+            if value is not None:
+                detail += f", empezando con {_expression(value)}"
+            detail += f"; se lee {use_count} vez/veces"
+            if use_count == 0:
+                detail += ". No encontré una lectura que pueda asociar a esta variable"
+            elif assignments > 1:
+                detail += ". Se reasigna; comprueba que cada cambio sea intencional"
+            else:
+                detail += ". Encontré una lectura en este ámbito o en uno interno"
+            if name in scope.annotated:
+                detail += ". Tiene una anotación de tipo, que Python no exige para crearla"
+            lines.append(f"{detail}.")
+    unresolved = [(scope.label, name, count) for scope in collector.scopes for name, count in scope.loads.items() if _resolve_variable_scope(scope, name, collector.root) is None]
+    if unresolved:
+        lines.append("Algunas lecturas se refieren a nombres globales, importados o incorporados que no se asignan en este archivo.")
     return lines
 
 
