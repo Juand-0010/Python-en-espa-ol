@@ -22,6 +22,8 @@ tradupython mi_programa.py --traducir
 
 La salida es código Python; puedes guardarla desde la terminal con `tradupython mi_programa.py --traducir > programa.py`.
 
+Si el programa es tuyo y confías en él, puedes traducirlo y ejecutarlo con `tradupython mi_programa.py --ejecutar`. Este modo ejecuta el código con los mismos permisos del usuario; no lo uses con archivos desconocidos.
+
 ## Usar desde Python
 
 ```python
@@ -105,7 +107,7 @@ El proyecto avanza por temas pequeños. Cada etapa añade ejemplos de entrada y 
 6. **Clases y objetos — inicial.** Resume clases, bases, métodos y asignaciones directas en el cuerpo de clase.
 7. **Errores e importaciones — inicial.** Describe bloques `try`/`except`/`else`/`finally`, `raise` e importaciones.
 8. **Experiencia de uso — inicial.** La CLI acepta temas, numera la explicación y convierte archivos con `--traducir`.
-9. **Calidad y publicación — inicial.** Hay pruebas automatizadas e integración continua para Python 3.10–3.12. La cobertura y la precisión deben crecer con más ejemplos reales.
+9. **Calidad y publicación — inicial.** Hay pruebas automatizadas e integración continua para Python 3.10–3.12, incluida una comprobación del comportamiento de un programa traducido. La cobertura y la precisión deben crecer con más ejemplos reales.
 
 **Criterio para cada etapa:** que la salida sea comprensible, conserve los nombres y literales originales, no ejecute el código y reconozca explícitamente las construcciones que todavía no explica. Las advertencias sobre variables serán orientativas, porque un análisis estático sencillo no puede asegurar todos los efectos de una ejecución.
 

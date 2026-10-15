@@ -1,4 +1,6 @@
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 
 from tradupython import TranslationError, explain, translate
 
@@ -93,6 +95,23 @@ si nombre es distinto de "" y nombre no es "anónimo":
         result = translate("total = suma([1, 2])\nmayor = maximo([1, 2])\n")
         self.assertIn("sum([1, 2])", result)
         self.assertIn("max([1, 2])", result)
+
+    def test_translated_program_keeps_expected_behavior(self):
+        source = '''
+funcion suma_hasta(limite):
+    total = 0
+    para numero en rango(limite):
+        total = total + numero
+    retornar total
+imprimir(suma_hasta(5))
+'''
+        translated = translate(source)
+        output = StringIO()
+        with redirect_stdout(output):
+            exec(compile(translated, "<tradupython-test>", "exec"), {
+                "__builtins__": {"print": print, "range": range},
+            })
+        self.assertEqual(output.getvalue(), "10\n")
 
 
 if __name__ == "__main__":
